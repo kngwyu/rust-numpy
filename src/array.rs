@@ -1,7 +1,7 @@
 //! Safe interface for NumPy ndarray
-
 use ndarray::{
-    Array, ArrayView, ArrayViewMut, Dim, Dimension, Ix1, Ix2, Ix3, IxDyn, Shape, StrideShape,
+    Array, ArrayView, ArrayViewMut, Dim, Dimension, Ix1, Ix2, Ix3, IxDyn, Shape, ShapeBuilder,
+    StrideShape,
 };
 use npyffi::{self, PY_ARRAY_API};
 use pyo3::*;
@@ -43,14 +43,17 @@ impl<'a, T: TypeNum, D: Dimension> FromPyObject<'a> for &'a PyArray<T, D> {
             if npyffi::PyArray_Check(ob.as_ptr()) == 0 {
                 return Err(PyDowncastError.into());
             }
-            let ptr = ob.as_ptr() as *mut npyffi::PyArrayObject;
-            let n = (*ptr).nd as usize;
-            unsafe {
-                let p = (*ptr).dimensions as *mut usize;
-                ::std::slice::from_raw_parts(p, n)
+            if let Some(ndim) = D::NDIM {
+                let ptr = ob.as_ptr() as *mut npyffi::PyArrayObject;
+                if (*ptr).nd as usize != ndim {
+                    return Err(PyErr::new::<exc::TypeError, _>(format!(
+                        "specified dim was {}, but actual dim was {}",
+                        ndim,
+                        (*ptr).nd
+                    )));
+                }
             }
-            let dim = 
-            &*(ob as *const PyObjectRef as *const PyArray<T>)
+            &*(ob as *const PyObjectRef as *const PyArray<T, D>)
         };
         array
             .type_check()
@@ -97,7 +100,7 @@ impl<T, D> PyArray<T, D> {
     /// ```
     pub fn to_owned(&self, py: Python) -> Self {
         let obj = unsafe { PyObject::from_borrowed_ptr(py, self.as_ptr()) };
-        PyArray(obj, PhantomData)
+        PyArray(obj, PhantomData, PhantomData)
     }
 
     /// Constructs `PyArray` from raw python object without incrementing reference counts.
@@ -149,39 +152,6 @@ impl<T, D> PyArray<T, D> {
             let p = (*ptr).strides;
             ::std::slice::from_raw_parts(p, n)
         }
-    }
-
-    /// Returns a slice which contains dimmensions of the array.
-    ///
-    /// Same as [numpy.ndarray.shape](https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.shape.html)
-    /// # Example
-    /// ```
-    /// # extern crate pyo3; extern crate numpy; fn main() {
-    /// use numpy::PyArray;
-    /// let gil = pyo3::Python::acquire_gil();
-    /// let arr = PyArray::<f64>::new(gil.python(), [4, 5, 6]);
-    /// assert_eq!(arr.shape(), &[4, 5, 6]);
-    /// # }
-    /// ```
-    // C API: https://docs.scipy.org/doc/numpy/reference/c-api.array.html#c.PyArray_DIMS
-    pub fn shape(&self) -> &[usize] {
-        let n = self.ndim();
-        let ptr = self.as_array_ptr();
-        unsafe {
-            let p = (*ptr).dimensions as *mut usize;
-            ::std::slice::from_raw_parts(p, n)
-        }
-    }
-
-    /// Same as [shape](./struct.PyArray.html#method.shape)
-    #[inline]
-    pub fn dims(&self) -> &[usize] {
-        self.shape()
-    }
-
-    /// Calcurates the total number of elements in the array.
-    pub fn len(&self) -> usize {
-        self.shape().iter().fold(1, |a, b| a * b)
     }
 }
 
@@ -314,6 +284,40 @@ impl<T: TypeNum> PyArray<T, Ix3> {
 }
 
 impl<T: TypeNum, D: Dimension> PyArray<T, D> {
+    /// Returns a slice which contains dimmensions of the array.
+    ///
+    /// Same as [numpy.ndarray.shape](https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.shape.html)
+    /// # Example
+    /// ```
+    /// # extern crate pyo3; extern crate numpy; fn main() {
+    /// use numpy::PyArray;
+    /// let gil = pyo3::Python::acquire_gil();
+    /// let arr = PyArray::<f64>::new(gil.python(), [4, 5, 6]);
+    /// assert_eq!(arr.shape(), &[4, 5, 6]);
+    /// # }
+    /// ```
+    // C API: https://docs.scipy.org/doc/numpy/reference/c-api.array.html#c.PyArray_DIMS
+    pub fn shape(&self) -> D {
+        let n = self.ndim();
+        let ptr = self.as_array_ptr();
+        let slice = unsafe {
+            let p = (*ptr).dimensions as *mut usize;
+            ::std::slice::from_raw_parts(p, n)
+        };
+        D::from_dimension(&Dim(slice)).expect(">_<")
+    }
+
+    /// Same as [shape](./struct.PyArray.html#method.shape)
+    #[inline]
+    pub fn dims(&self) -> D {
+        self.shape()
+    }
+
+    /// Calcurates the total number of elements in the array.
+    pub fn len(&self) -> usize {
+        self.shape().size()
+    }
+
     /// Construct PyArray from ndarray::Array.
     ///
     /// # Example
@@ -340,13 +344,13 @@ impl<T: TypeNum, D: Dimension> PyArray<T, D> {
 
     fn ndarray_shape(&self) -> StrideShape<D> {
         // FIXME may be done more simply
-        let shape: Shape<_> = Dim(self.shape()).into();
+        let shape: Shape<_> = self.shape().into();
         let st: Vec<usize> = self
             .strides()
             .iter()
             .map(|&x| x as usize / ::std::mem::size_of::<T>())
             .collect();
-        shape.strides(Dim(st))
+        shape.strides(D::from_dimension(&IxDyn(st.as_ref())).expect(">_<"))
     }
 
     fn typenum(&self) -> i32 {
@@ -561,7 +565,7 @@ impl<T: TypeNum, D: Dimension> PyArray<T, D> {
         if ptr.is_null() {
             Err(ErrorKind::dtype_cast(self, U::npy_data_type()))
         } else {
-            Ok(unsafe { PyArray::<U>::from_owned_ptr(self.py(), ptr) })
+            Ok(unsafe { PyArray::<U, D>::from_owned_ptr(self.py(), ptr) })
         }
     }
 
@@ -608,7 +612,7 @@ impl<T: TypeNum, D: Dimension> PyArray<T, D> {
         if ptr.is_null() {
             Err(ErrorKind::dims_cast(self, dims))
         } else {
-            Ok(unsafe { PyArray::<T>::from_owned_ptr(self.py(), ptr) })
+            Ok(unsafe { PyArray::<T, D2::Dim>::from_owned_ptr(self.py(), ptr) })
         }
     }
 }

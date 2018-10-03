@@ -2,6 +2,7 @@
 
 use array::PyArray;
 use convert::ToNpyDims;
+use ndarray::Dimension;
 use pyo3::*;
 use std::error;
 use std::fmt;
@@ -56,13 +57,11 @@ impl ErrorKind {
             to,
         }
     }
-    pub(crate) fn dtype_cast<T: TypeNum, D>(from: &PyArray<T, D>, to: NpyDataType) -> Self {
-        let dims = from
-            .shape()
-            .into_iter()
-            .map(|&x| x)
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
+    pub(crate) fn dtype_cast<T: TypeNum, D: Dimension>(
+        from: &PyArray<T, D>,
+        to: NpyDataType,
+    ) -> Self {
+        let dims = Vec::from(from.shape().slice()).into_boxed_slice();
         let from = ArrayFormat {
             dims: dims.clone(),
             dtype: T::npy_data_type(),
@@ -70,19 +69,12 @@ impl ErrorKind {
         let to = ArrayFormat { dims, dtype: to };
         ErrorKind::PyToPy(Box::new((from, to)))
     }
-    pub(crate) fn dims_cast<T: TypeNum, D>(from: &PyArray<T, D>, to_dim: impl ToNpyDims) -> Self {
-        let dims_from = from
-            .shape()
-            .into_iter()
-            .map(|&x| x)
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
-        let dims_to = to_dim
-            .dims_ref()
-            .into_iter()
-            .map(|&x| x)
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
+    pub(crate) fn dims_cast<T: TypeNum, D: Dimension>(
+        from: &PyArray<T, D>,
+        to_dim: impl ToNpyDims,
+    ) -> Self {
+        let dims_from = Vec::from(from.shape().slice()).into_boxed_slice();
+        let dims_to = Vec::from(to_dim.dims_ref()).into_boxed_slice();
         let from = ArrayFormat {
             dims: dims_from,
             dtype: T::npy_data_type(),

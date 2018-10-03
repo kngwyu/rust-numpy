@@ -49,8 +49,8 @@ impl<T: TypeNum> IntoPyArray for Vec<T> {
 impl<A: TypeNum, D: Dimension> IntoPyArray for Array<A, D> {
     type Item = A;
     type Dim = D;
-    fn into_pyarray(self, py: Python) -> &PyArray<Self::Item, D> {
-        let dims: Vec<_> = self.shape().iter().cloned().collect();
+    fn into_pyarray(self, py: Python) -> &PyArray<Self::Item, Self::Dim> {
+        let dims = D::from_dimension(&IxDyn(self.shape())).expect(">_<");
         let mut strides: Vec<_> = self
             .strides()
             .into_iter()
@@ -58,34 +58,35 @@ impl<A: TypeNum, D: Dimension> IntoPyArray for Array<A, D> {
             .collect();
         unsafe {
             let data = into_raw(self.into_raw_vec());
-            PyArray::new_(py, &*dims, strides.as_mut_ptr(), data)
+            PyArray::new_(py, dims, strides.as_mut_ptr(), data)
         }
     }
 }
 
-// macro_rules! array_impls {
-//     ($($N: expr)+) => {
-//         $(
-//             impl<T: TypeNum> IntoPyArray for [T; $N] {
-//                 type Item = T;
-//                 fn into_pyarray(self, py: Python) -> &PyArray<T> {
-//                     let dims = [$N];
-//                     let ptr = Box::into_raw(Box::new(self));
-//                     unsafe {
-//                         PyArray::new_(py, dims, null_mut(), ptr as *mut c_void)
-//                     }
-//                 }
-//             }
-//         )+
-//     }
-// }
+macro_rules! array_impls {
+    ($($N: expr)+) => {
+        $(
+            impl<T: TypeNum> IntoPyArray for [T; $N] {
+                type Item = T;
+                type Dim = Ix1;
+                fn into_pyarray(self, py: Python) -> &PyArray<T, Self::Dim> {
+                    let dims = [$N];
+                    let ptr = Box::into_raw(Box::new(self));
+                    unsafe {
+                        PyArray::new_(py, dims, null_mut(), ptr as *mut c_void)
+                    }
+                }
+            }
+        )+
+    }
+}
 
-// array_impls! {
-//      0  1  2  3  4  5  6  7  8  9
-//     10 11 12 13 14 15 16 17 18 19
-//     20 21 22 23 24 25 26 27 28 29
-//     30 31 32
-// }
+array_impls! {
+     0  1  2  3  4  5  6  7  8  9
+    10 11 12 13 14 15 16 17 18 19
+    20 21 22 23 24 25 26 27 28 29
+    30 31 32
+}
 
 pub(crate) unsafe fn into_raw<T>(x: Vec<T>) -> *mut c_void {
     let ptr = Box::into_raw(x.into_boxed_slice());
