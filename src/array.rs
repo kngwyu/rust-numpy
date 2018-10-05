@@ -50,11 +50,11 @@ impl<'a, T: TypeNum> FromPyObject<'a> for &'a PyArray<T> {
     }
 }
 
-impl<T> IntoPyObject for PyArray<T> {
-    fn into_object(self, _py: Python) -> PyObject {
-        self.0
-    }
-}
+// impl<T> IntoPyObject for PyArray<T> {
+//     fn into_object(self, _py: Python) -> PyObject {
+//         self.0
+//     }
+// }
 
 impl<T> PyArray<T> {
     /// Gets a raw `PyArrayObject` pointer.
@@ -401,9 +401,9 @@ impl<T: TypeNum> PyArray<T> {
             T::typenum_default(),
             strides,
             data,
-            0,                         // itemsize
-            npyffi::NPY_ARRAY_OWNDATA, // flag
-            ::std::ptr::null_mut(),    //obj
+            0,                      // itemsize
+            0,                      // npyffi::NPY_ARRAY_OWNDATA, // flag
+            ::std::ptr::null_mut(), //obj
         );
         Self::from_owned_ptr(py, ptr)
     }
