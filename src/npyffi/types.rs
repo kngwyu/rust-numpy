@@ -203,3 +203,17 @@ pub struct npy_stride_sort_item {
     pub perm: npy_intp,
     pub stride: npy_intp,
 }
+
+// https://github.com/numpy/numpy/blob/master/numpy/core/include/numpy/ndarraytypes.h
+pub const NPY_ARRAY_C_CONTIGUOUS: c_int = 0x0001;
+pub const NPY_ARRAY_F_CONTIGUOUS: c_int = 0x0002;
+pub const NPY_ARRAY_OWNDATA: c_int = 0x0004;
+pub const NPY_ARRAY_FORCECAST: c_int = 0x0010;
+pub const NPY_ARRAY_ENSURECOPY: c_int = 0x0020;
+pub const NPY_ARRAY_ENSUREARRAY: c_int = 0x0040;
+pub const NPY_ARRAY_ELEMENTSTRIDES: c_int = 0x0080;
+pub const NPY_ARRAY_ALIGNED: c_int = 0x0100;
+pub const NPY_ARRAY_NOTSWAPPED: c_int = 0x0200;
+pub const NPY_ARRAY_WRITEABLE: c_int = 0x0400;
+pub const NPY_ARRAY_UPDATEIFCOPY: c_int = 0x1000;
+pub const NPY_ARRAY_WRITEBACKIFCOPY: c_int = 0x2000;

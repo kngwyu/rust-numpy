@@ -401,9 +401,9 @@ impl<T: TypeNum> PyArray<T> {
             T::typenum_default(),
             strides,
             data,
-            0,                      // itemsize
-            0,                      // flag
-            ::std::ptr::null_mut(), //obj
+            0,                         // itemsize
+            npyffi::NPY_ARRAY_OWNDATA, // flag
+            ::std::ptr::null_mut(),    //obj
         );
         Self::from_owned_ptr(py, ptr)
     }
