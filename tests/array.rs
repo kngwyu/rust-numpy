@@ -15,7 +15,7 @@ fn new() {
     let arr = PyArray::<f64>::new(gil.python(), dim);
     assert!(arr.ndim() == 2);
     assert!(arr.dims() == [n, m]);
-    assert!(arr.strides() == [m as isize * 8, 8]);
+    assert!(arr.strides() == [m as isize * 8, 8], "{:?}", arr.strides());
 }
 
 #[test]
