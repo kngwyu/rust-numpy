@@ -28,42 +28,34 @@ pub enum NpyDataType {
 }
 
 impl NpyDataType {
+    #[cfg(any(target_pointer_width = "32", windows))]
+    const CLONG_SIGNED: Self = NpyDataType::Int32;
+    #[cfg(any(target_pointer_width = "32", windows))]
+    const CLONG_UNSIGNED: Self = NpyDataType::Uint32;
+
+    #[cfg(all(target_pointer_width = "64", not(windows)))]
+    const CLONG_SIGNED: Self = NpyDataType::Int64;
+    #[cfg(all(target_pointer_width = "64", not(windows)))]
+    const CLONG_UNSIGNED: Self = NpyDataType::Uint64;
+
     pub(crate) fn from_i32(npy_t: i32) -> Self {
         match npy_t {
             x if x == NPY_TYPES::NPY_BOOL as i32 => NpyDataType::Bool,
             x if x == NPY_TYPES::NPY_BYTE as i32 => NpyDataType::Int8,
             x if x == NPY_TYPES::NPY_SHORT as i32 => NpyDataType::Int16,
             x if x == NPY_TYPES::NPY_INT as i32 => NpyDataType::Int32,
-            x if x == NPY_TYPES::NPY_LONG as i32 => NpyDataType::from_clong(false),
+            x if x == NPY_TYPES::NPY_LONG as i32 => Self::CLONG_SIGNED,
             x if x == NPY_TYPES::NPY_LONGLONG as i32 => NpyDataType::Int64,
             x if x == NPY_TYPES::NPY_UBYTE as i32 => NpyDataType::Uint8,
             x if x == NPY_TYPES::NPY_USHORT as i32 => NpyDataType::Uint16,
             x if x == NPY_TYPES::NPY_UINT as i32 => NpyDataType::Uint32,
-            x if x == NPY_TYPES::NPY_ULONG as i32 => NpyDataType::from_clong(true),
+            x if x == NPY_TYPES::NPY_ULONG as i32 => Self::CLONG_UNSIGNED,
             x if x == NPY_TYPES::NPY_ULONGLONG as i32 => NpyDataType::Uint64,
             x if x == NPY_TYPES::NPY_FLOAT as i32 => NpyDataType::Float32,
             x if x == NPY_TYPES::NPY_DOUBLE as i32 => NpyDataType::Float64,
             x if x == NPY_TYPES::NPY_CFLOAT as i32 => NpyDataType::Complex32,
             x if x == NPY_TYPES::NPY_CDOUBLE as i32 => NpyDataType::Complex64,
             _ => NpyDataType::Unsupported,
-        }
-    }
-    #[inline(always)]
-    fn from_clong(is_usize: bool) -> NpyDataType {
-        if cfg!(any(target_pointer_width = "32", windows)) {
-            if is_usize {
-                NpyDataType::Uint32
-            } else {
-                NpyDataType::Int32
-            }
-        } else if cfg!(all(target_pointer_width = "64", not(windows))) {
-            if is_usize {
-                NpyDataType::Uint64
-            } else {
-                NpyDataType::Int64
-            }
-        } else {
-            NpyDataType::Unsupported
         }
     }
 }
